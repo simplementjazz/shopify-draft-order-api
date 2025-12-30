@@ -5,6 +5,6 @@
   "main": "api/create-draft-order.js",
   "dependencies": {},
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   }
 }
