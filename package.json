@@ -1,0 +1,10 @@
+{
+  "name": "shopify-draft-order-api",
+  "version": "1.0.0",
+  "description": "API pour créer des draft orders Shopify",
+  "main": "api/create-draft-order.js",
+  "dependencies": {},
+  "engines": {
+    "node": "18.x"
+  }
+}
