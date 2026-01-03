@@ -32,13 +32,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Créer un titre unique pour le variant basé sur les properties
+    // Créer un titre unique pour le variant
     const secteur = properties['Secteur'] || '';
-    const cachet = properties['Cachet du musicien'] || '';
     const total = properties['_Total à payer'] || price;
+    const timestamp = Date.now();
     
-    const variantTitle = `${secteur} - ${total}`;
-    const variantSKU = `CUSTOM-${Date.now()}`; // SKU unique basé sur timestamp
+    // Titre unique avec timestamp pour éviter les doublons
+    const variantTitle = `${secteur} - ${total} - ${timestamp}`;
+    const variantSKU = `CUSTOM-${timestamp}`;
 
     // Créer le variant via l'API Shopify
     const variantData = {
@@ -47,8 +48,8 @@ module.exports = async (req, res) => {
         option1: variantTitle,
         price: price,
         sku: variantSKU,
-        inventory_management: null, // Pas de gestion d'inventaire pour les variants personnalisés
-        inventory_policy: 'continue' // Permettre la vente même si stock = 0
+        inventory_management: null,
+        inventory_policy: 'continue'
       }
     };
 
