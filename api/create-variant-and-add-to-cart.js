@@ -84,7 +84,7 @@ module.exports = async (req, res) => {
       console.log('❌ Aucun variant trouvé avec ce prix, création d\'un nouveau...');
       
       variantTitle = `${secteur} - ${total}`;
-      const variantSKU = `CUSTOM-${Date.now()}`;
+      const variantSKU = `Prestation-${Date.now()}`;
 
       const variantData = {
         variant: {
