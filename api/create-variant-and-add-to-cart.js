@@ -22,15 +22,37 @@ module.exports = async (req, res) => {
       });
     }
 
-    const shopDomain = 'ick3df-yk.myshopify.com';
-    const accessToken = process.env.SHOPIFY_ADMIN_TOKEN;
+    const shopDomain = process.env.SHOPIFY_STORE_URL || 'paiementmusique.myshopify.com';
 
-    if (!accessToken) {
-      return res.status(500).json({ 
-        error: 'Configuration serveur incorrecte',
-        details: 'Token Shopify non configuré'
+    // ========================================
+    // GÉNÉRATION DU TOKEN D'ACCÈS
+    // ========================================
+    console.log('🔑 Génération du token d\'accès...');
+    const tokenResponse = await fetch(
+      `https://${shopDomain}/admin/oauth/access_token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: process.env.SHOPIFY_CLIENT_ID,
+          client_secret: process.env.SHOPIFY_CLIENT_SECRET,
+          grant_type: 'client_credentials'
+        })
+      }
+    );
+
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenResponse.ok) {
+      console.error('❌ Erreur génération token:', tokenData);
+      return res.status(tokenResponse.status).json({
+        error: 'Erreur d\'authentification',
+        details: tokenData
       });
     }
+
+    const accessToken = tokenData.access_token;
+    console.log('✅ Token généré avec succès');
 
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
@@ -69,7 +91,7 @@ module.exports = async (req, res) => {
     if (variantsData.variants && variantsData.variants.length > 0) {
       existingVariant = variantsData.variants.find(variant => {
         const variantPrice = parseFloat(variant.price);
-        return Math.abs(variantPrice - priceFloat) < 0.01; // Tolérance de 1 cent
+        return Math.abs(variantPrice - priceFloat) < 0.01;
       });
     }
 
@@ -86,7 +108,7 @@ module.exports = async (req, res) => {
       console.log('✅ Variant existant trouvé:', variantId, '-', variantTitle);
     } else {
       // ========================================
-      // ÉTAPE 3B : Aucun variant trouvé, on en crée un nouveau
+      // ÉTAPE 3B : Création d'un nouveau variant
       // ========================================
       console.log('➕ Création d\'un nouveau variant...');
       
@@ -143,7 +165,7 @@ module.exports = async (req, res) => {
     });
 
     // ========================================
-    // ÉTAPE 5 : Retourner les informations pour ajouter au panier
+    // ÉTAPE 5 : Retourner les informations
     // ========================================
     return res.status(200).json({
       success: true,
