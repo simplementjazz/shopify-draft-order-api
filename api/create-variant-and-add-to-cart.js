@@ -23,36 +23,14 @@ module.exports = async (req, res) => {
     }
 
     const shopDomain = process.env.SHOPIFY_STORE_URL || 'paiementmusique.myshopify.com';
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
-    // ========================================
-    // GÉNÉRATION DU TOKEN D'ACCÈS
-    // ========================================
-    console.log('🔑 Génération du token d\'accès...');
-    const tokenResponse = await fetch(
-      `https://${shopDomain}/admin/oauth/access_token`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          client_id: process.env.SHOPIFY_CLIENT_ID,
-          client_secret: process.env.SHOPIFY_CLIENT_SECRET,
-          grant_type: 'client_credentials'
-        })
-      }
-    );
-
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenResponse.ok) {
-      console.error('❌ Erreur génération token:', tokenData);
-      return res.status(tokenResponse.status).json({
-        error: 'Erreur d\'authentification',
-        details: tokenData
+    if (!accessToken) {
+      return res.status(500).json({ 
+        error: 'Configuration serveur incorrecte',
+        details: 'Access token non configuré'
       });
     }
-
-    const accessToken = tokenData.access_token;
-    console.log('✅ Token généré avec succès');
 
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
@@ -100,16 +78,10 @@ module.exports = async (req, res) => {
     let isNewVariant = false;
 
     if (existingVariant) {
-      // ========================================
-      // ÉTAPE 3A : Variant trouvé, on le réutilise
-      // ========================================
       variantId = existingVariant.id;
       variantTitle = existingVariant.title;
       console.log('✅ Variant existant trouvé:', variantId, '-', variantTitle);
     } else {
-      // ========================================
-      // ÉTAPE 3B : Création d'un nouveau variant
-      // ========================================
       console.log('➕ Création d\'un nouveau variant...');
       
       variantTitle = `${secteur} - ${priceFloat.toFixed(2)} $`;
@@ -125,8 +97,6 @@ module.exports = async (req, res) => {
           inventory_policy: 'continue'
         }
       };
-
-      console.log('📦 Création du variant:', JSON.stringify(variantData, null, 2));
 
       const createVariantResponse = await fetch(
         `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json`,
@@ -156,17 +126,11 @@ module.exports = async (req, res) => {
       console.log('✅ Nouveau variant créé:', variantId, '-', variantTitle);
     }
 
-    // ========================================
-    // ÉTAPE 4 : Préparer les properties pour le panier
-    // ========================================
     const cartProperties = {};
     Object.entries(properties || {}).forEach(([key, value]) => {
       cartProperties[key] = String(value);
     });
 
-    // ========================================
-    // ÉTAPE 5 : Retourner les informations
-    // ========================================
     return res.status(200).json({
       success: true,
       variantId: variantId,
