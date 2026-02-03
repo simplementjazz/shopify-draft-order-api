@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    const shopDomain = process.env.SHOPIFY_STORE_URL || 'paiementmusique.myshopify.com';
+    const shopDomain = process.env.SHOPIFY_STORE_URL || 'solution-paiement.myshopify.com';
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
     if (!accessToken) {
