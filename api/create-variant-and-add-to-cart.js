@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
     if (variantsData.variants && variantsData.variants.length > 0) {
       existingVariant = variantsData.variants.find(variant => {
         const variantPrice = parseFloat(variant.price);
-        return Math.abs(variantPrice - priceFloat) < 0.01;
+        return Math.abs(variantPrice - priceFloat) < 0.01; // Tolérance de 1 cent
       });
     }
 
@@ -78,10 +78,16 @@ module.exports = async (req, res) => {
     let isNewVariant = false;
 
     if (existingVariant) {
+      // ========================================
+      // ÉTAPE 3A : Variant trouvé, on le réutilise
+      // ========================================
       variantId = existingVariant.id;
       variantTitle = existingVariant.title;
       console.log('✅ Variant existant trouvé:', variantId, '-', variantTitle);
     } else {
+      // ========================================
+      // ÉTAPE 3B : Aucun variant trouvé, on en crée un nouveau
+      // ========================================
       console.log('➕ Création d\'un nouveau variant...');
       
       variantTitle = `${secteur} - ${priceFloat.toFixed(2)} $`;
@@ -97,6 +103,8 @@ module.exports = async (req, res) => {
           inventory_policy: 'continue'
         }
       };
+
+      console.log('📦 Création du variant:', JSON.stringify(variantData, null, 2));
 
       const createVariantResponse = await fetch(
         `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json`,
@@ -126,11 +134,17 @@ module.exports = async (req, res) => {
       console.log('✅ Nouveau variant créé:', variantId, '-', variantTitle);
     }
 
+    // ========================================
+    // ÉTAPE 4 : Préparer les properties pour le panier
+    // ========================================
     const cartProperties = {};
     Object.entries(properties || {}).forEach(([key, value]) => {
       cartProperties[key] = String(value);
     });
 
+    // ========================================
+    // ÉTAPE 5 : Retourner les informations pour ajouter au panier
+    // ========================================
     return res.status(200).json({
       success: true,
       variantId: variantId,
