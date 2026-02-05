@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    const shopDomain = process.env.SHOPIFY_STORE_URL || 'solution-paiement.myshopify.com';
+    const shopDomain = process.env.SHOPIFY_STORE_URL || 'ick3df-yk.myshopify.com';
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
     if (!accessToken) {
@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
     // ÉTAPE 1 : Récupérer tous les variants du produit
     // ========================================
     const getVariantsResponse = await fetch(
-      `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json?limit=250`,
+      `https://${shopDomain}/admin/api/2026-01/products/${productId}/variants.json?limit=250`,
       {
         method: 'GET',
         headers: {
@@ -107,7 +107,7 @@ module.exports = async (req, res) => {
       console.log('📦 Création du variant:', JSON.stringify(variantData, null, 2));
 
       const createVariantResponse = await fetch(
-        `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json`,
+        `https://${shopDomain}/admin/api/2026-01/products/${productId}/variants.json`,
         {
           method: 'POST',
           headers: {
