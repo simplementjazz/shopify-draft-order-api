@@ -1,4 +1,11 @@
+require('dotenv').config();
+
 module.exports = async (req, res) => {
+  // Logs de debug
+  console.log('🔍 SHOPIFY_STORE_URL:', process.env.SHOPIFY_STORE_URL);
+  console.log('🔍 Token présent:', process.env.SHOPIFY_ACCESS_TOKEN ? 'OUI' : 'NON');
+  console.log('🔍 Token début:', process.env.SHOPIFY_ACCESS_TOKEN?.substring(0, 10));
+
   // Configuration CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -31,9 +38,6 @@ module.exports = async (req, res) => {
         details: 'Access token non configuré'
       });
     }
-    console.log('🔍 Shop Domain:', shopDomain);
-    console.log('🔍 Access Token présent:', accessToken ? 'OUI' : 'NON');
-    console.log('🔍 Access Token commence par:', accessToken ? accessToken.substring(0, 10) : 'N/A');
 
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
