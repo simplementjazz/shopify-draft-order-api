@@ -31,6 +31,9 @@ module.exports = async (req, res) => {
         details: 'Access token non configuré'
       });
     }
+    console.log('🔍 Shop Domain:', shopDomain);
+    console.log('🔍 Access Token présent:', accessToken ? 'OUI' : 'NON');
+    console.log('🔍 Access Token commence par:', accessToken ? accessToken.substring(0, 10) : 'N/A');
 
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
