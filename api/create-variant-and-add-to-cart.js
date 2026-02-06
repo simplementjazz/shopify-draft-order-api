@@ -1,4 +1,3 @@
-
 module.exports = async (req, res) => {
   // Logs de debug
   console.log('🔍 SHOPIFY_STORE_URL:', process.env.SHOPIFY_STORE_URL);
@@ -28,13 +27,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    const shopDomain = process.env.SHOPIFY_STORE_URL || 'ick3df-yk.myshopify.com';
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    // ⚠️ VALEURS FORCÉES TEMPORAIREMENT - Remplacez VOTRE_TOKEN_ICI par votre vrai token shpat_...
+    const shopDomain = 'ick3df-yk.myshopify.com';
+    const accessToken = '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'; // ← REMPLACEZ PAR VOTRE VRAI TOKEN
 
-    if (!accessToken) {
+    if (!accessToken || accessToken === 'VOTRE_TOKEN_SHPAT_ICI') {
       return res.status(500).json({ 
         error: 'Configuration serveur incorrecte',
-        details: 'Access token non configuré'
+        details: 'Access token non configuré - remplacez VOTRE_TOKEN_SHPAT_ICI dans le code'
       });
     }
 
