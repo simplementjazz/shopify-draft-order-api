@@ -1,4 +1,3 @@
-require('dotenv').config();
 
 module.exports = async (req, res) => {
   // Logs de debug
