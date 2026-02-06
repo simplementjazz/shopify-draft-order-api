@@ -29,7 +29,7 @@ module.exports = async (req, res) => {
 
     // ⚠️ VALEURS FORCÉES TEMPORAIREMENT - Remplacez VOTRE_TOKEN_ICI par votre vrai token shpat_...
     const shopDomain = 'ick3df-yk.myshopify.com';
-    const accessToken = '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'; // ← REMPLACEZ PAR VOTRE VRAI TOKEN
+    
 
     if (!accessToken || accessToken === 'VOTRE_TOKEN_SHPAT_ICI') {
       return res.status(500).json({ 
