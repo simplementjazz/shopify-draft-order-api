@@ -27,14 +27,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    // ⚠️ VALEURS FORCÉES TEMPORAIREMENT - Remplacez VOTRE_TOKEN_ICI par votre vrai token shpat_...
-    const shopDomain = 'ick3df-yk.myshopify.com';
-    
+    // ✅ VALEURS MISES À JOUR
+    const shopDomain = process.env.SHOPIFY_STORE_URL || 'solution-paiement.myshopify.com';
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 'VOTRE_ACCESS_TOKEN_SHPAT_ICI';
 
-    if (!accessToken || accessToken === 'VOTRE_TOKEN_SHPAT_ICI') {
+    if (!accessToken || accessToken === 'VOTRE_ACCESS_TOKEN_SHPAT_ICI') {
       return res.status(500).json({ 
         error: 'Configuration serveur incorrecte',
-        details: 'Access token non configuré - remplacez VOTRE_TOKEN_SHPAT_ICI dans le code'
+        details: 'Access token non configuré - ajoutez SHOPIFY_ACCESS_TOKEN dans vos variables d\'environnement'
       });
     }
 
@@ -47,7 +47,7 @@ module.exports = async (req, res) => {
     // ÉTAPE 1 : Récupérer tous les variants du produit
     // ========================================
     const getVariantsResponse = await fetch(
-      `https://${shopDomain}/admin/api/2026-01/products/${productId}/variants.json?limit=250`,
+      `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json?limit=250`,
       {
         method: 'GET',
         headers: {
@@ -113,7 +113,7 @@ module.exports = async (req, res) => {
       console.log('📦 Création du variant:', JSON.stringify(variantData, null, 2));
 
       const createVariantResponse = await fetch(
-        `https://${shopDomain}/admin/api/2026-01/products/${productId}/variants.json`,
+        `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json`,
         {
           method: 'POST',
           headers: {
