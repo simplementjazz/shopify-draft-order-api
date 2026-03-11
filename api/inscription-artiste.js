@@ -100,7 +100,7 @@ module.exports = async function handler(req, res) {
 
     // Appel à l'API Shopify pour créer le client
     const shopifyResponse = await fetch(
-      `${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers.json`,
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers.json`,
       {
         method: 'POST',
         headers: {
@@ -125,7 +125,7 @@ module.exports = async function handler(req, res) {
     const customerId = responseData.customer.id;
     
     const accountActivationResponse = await fetch(
-      `${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customerId}/account_activation_url.json`,
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customerId}/account_activation_url.json`,
       {
         method: 'POST',
         headers: {
