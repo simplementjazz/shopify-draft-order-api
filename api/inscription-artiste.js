@@ -1,5 +1,5 @@
 // api/inscription-artiste.js
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Autoriser les requêtes CORS depuis votre domaine
   res.setHeader('Access-Control-Allow-Origin', 'https://www.paiementmusique.ca');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -125,7 +125,7 @@ export default async function handler(req, res) {
     const customerId = responseData.customer.id;
     
     const accountActivationResponse = await fetch(
-      ``${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customerId}/account_activation_url.json`,
+      `${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customerId}/account_activation_url.json`,
       {
         method: 'POST',
         headers: {
@@ -151,4 +151,4 @@ export default async function handler(req, res) {
       details: error.message 
     });
   }
-}
+};
