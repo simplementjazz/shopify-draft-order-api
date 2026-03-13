@@ -37,22 +37,28 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Customer ID requis' });
     }
 
-    // Mettre à jour les informations de base du client
+    // Récupérer d'abord les données actuelles du client
+    const getCustomerResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}.json`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+        }
+      }
+    );
+
+    const currentCustomerData = await getCustomerResponse.json();
+    const defaultAddressId = currentCustomerData.customer.default_address?.id;
+
+    // Mettre à jour les informations de base du client (sans le téléphone)
     const customerData = {
       customer: {
         id: customer_id,
         first_name,
         last_name,
-        email,
-        phone,
-        addresses: [{
-          address1,
-          address2,
-          city,
-          country,
-          province,
-          zip
-        }]
+        email
       }
     };
 
@@ -78,6 +84,60 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // Mettre à jour l'adresse séparément (avec le téléphone)
+    if (defaultAddressId) {
+      const addressResponse = await fetch(
+        `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/addresses/${defaultAddressId}.json`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+          },
+          body: JSON.stringify({
+            address: {
+              address1,
+              address2,
+              city,
+              country,
+              province,
+              zip,
+              phone
+            }
+          })
+        }
+      );
+
+      if (!addressResponse.ok) {
+        const addressError = await addressResponse.json();
+        console.error('Address update error:', addressError);
+      }
+    } else {
+      // Si pas d'adresse par défaut, en créer une
+      await fetch(
+        `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/addresses.json`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+          },
+          body: JSON.stringify({
+            address: {
+              address1,
+              address2,
+              city,
+              country,
+              province,
+              zip,
+              phone,
+              default: true
+            }
+          })
+        }
+      );
+    }
+
     // Mettre à jour les métachamps
     const metafields = [
       { key: 'compagnie', value: compagnie || '' },
@@ -88,25 +148,73 @@ module.exports = async function handler(req, res) {
       { key: 'numero_tvq', value: numero_tvq || '' }
     ];
 
-    for (const field of metafields) {
-      await fetch(
-        `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/metafields.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
-          },
-          body: JSON.stringify({
-            metafield: {
-              namespace: 'custom',
-              key: field.key,
-              value: field.value,
-              type: 'single_line_text_field'
-            }
-          })
+    // Récupérer les métachamps existants pour les mettre à jour au lieu de les créer
+    const metafieldsResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/metafields.json`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
         }
-      );
+      }
+    );
+
+    const existingMetafields = await metafieldsResponse.json();
+    const metafieldsMap = {};
+    
+    if (existingMetafields.metafields) {
+      existingMetafields.metafields.forEach(mf => {
+        if (mf.namespace === 'custom') {
+          metafieldsMap[mf.key] = mf.id;
+        }
+      });
+    }
+
+    // Mettre à jour ou créer chaque métachamp
+    for (const field of metafields) {
+      const metafieldId = metafieldsMap[field.key];
+      
+      if (metafieldId) {
+        // Mettre à jour le métachamp existant
+        await fetch(
+          `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/metafields/${metafieldId}.json`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+            },
+            body: JSON.stringify({
+              metafield: {
+                id: metafieldId,
+                value: field.value,
+                type: 'single_line_text_field'
+              }
+            })
+          }
+        );
+      } else {
+        // Créer un nouveau métachamp
+        await fetch(
+          `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/customers/${customer_id}/metafields.json`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+            },
+            body: JSON.stringify({
+              metafield: {
+                namespace: 'custom',
+                key: field.key,
+                value: field.value,
+                type: 'single_line_text_field'
+              }
+            })
+          }
+        );
+      }
     }
 
     return res.status(200).json({ 
