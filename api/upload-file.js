@@ -16,46 +16,146 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { file_data, file_name, file_type, customer_id } = req.body;
+    const { file_data, file_name, file_type } = req.body;
 
     // Décoder le fichier base64
     const buffer = Buffer.from(file_data.split(',')[1], 'base64');
 
-    // Créer le FormData pour Shopify
-    const formData = new FormData();
-    formData.append('file', buffer, {
-      filename: file_name,
-      contentType: file_type
-    });
+    // ÉTAPE 1: Créer un staged upload
+    const stagedUploadMutation = `
+      mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+        stagedUploadsCreate(input: $input) {
+          stagedTargets {
+            url
+            resourceUrl
+            parameters {
+              name
+              value
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
 
-    // Upload vers Shopify Files
-    const uploadResponse = await fetch(
-      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-01/files.json`,
+    const stagedResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
       {
         method: 'POST',
         headers: {
-          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN,
-          ...formData.getHeaders()
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
         },
-        body: formData
+        body: JSON.stringify({
+          query: stagedUploadMutation,
+          variables: {
+            input: [{
+              resource: "FILE",
+              filename: file_name,
+              mimeType: file_type,
+              httpMethod: "POST"
+            }]
+          }
+        })
       }
     );
 
-    const uploadData = await uploadResponse.json();
-
-    if (!uploadResponse.ok) {
-      console.error('Shopify Upload Error:', uploadData);
+    const stagedData = await stagedResponse.json();
+    
+    if (stagedData.data?.stagedUploadsCreate?.userErrors?.length > 0) {
+      console.error('Staged Upload Error:', stagedData.data.stagedUploadsCreate.userErrors);
       return res.status(400).json({ 
-        error: 'Erreur lors de l\'upload',
-        details: uploadData.errors 
+        error: 'Erreur lors de la préparation de l\'upload',
+        details: stagedData.data.stagedUploadsCreate.userErrors
       });
     }
 
-    // Retourner l'URL du fichier uploadé
+    const stagedTarget = stagedData.data.stagedUploadsCreate.stagedTargets[0];
+
+    // ÉTAPE 2: Upload le fichier vers l'URL staged
+    const formData = new FormData();
+    
+    stagedTarget.parameters.forEach(param => {
+      formData.append(param.name, param.value);
+    });
+    formData.append('file', buffer, file_name);
+
+    const uploadResponse = await fetch(stagedTarget.url, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!uploadResponse.ok) {
+      console.error('Upload Error:', await uploadResponse.text());
+      return res.status(400).json({ 
+        error: 'Erreur lors de l\'upload du fichier'
+      });
+    }
+
+    // ÉTAPE 3: Créer le fichier dans Shopify
+    const fileCreateMutation = `
+      mutation fileCreate($files: [FileCreateInput!]!) {
+        fileCreate(files: $files) {
+          files {
+            id
+            alt
+            createdAt
+            ... on MediaImage {
+              image {
+                url
+              }
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const fileCreateResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+        },
+        body: JSON.stringify({
+          query: fileCreateMutation,
+          variables: {
+            files: [{
+              alt: file_name,
+              contentType: "IMAGE",
+              originalSource: stagedTarget.resourceUrl
+            }]
+          }
+        })
+      }
+    );
+
+    const fileData = await fileCreateResponse.json();
+    
+    if (fileData.data?.fileCreate?.userErrors?.length > 0) {
+      console.error('File Create Error:', fileData.data.fileCreate.userErrors);
+      return res.status(400).json({ 
+        error: 'Erreur lors de la création du fichier',
+        details: fileData.data.fileCreate.userErrors
+      });
+    }
+
+    const createdFile = fileData.data.fileCreate.files[0];
+
+    // Retourner le GID du fichier (nécessaire pour le metafield)
     return res.status(200).json({ 
       success: true,
-      file_url: uploadData.file?.url || uploadData.file?.preview_image?.url,
-      file_id: uploadData.file?.id
+      file_gid: createdFile.id, // C'est ce GID qu'il faut utiliser dans le metafield
+      file_url: createdFile.image?.url,
+      file_alt: createdFile.alt
     });
 
   } catch (error) {
