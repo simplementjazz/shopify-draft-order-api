@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "API pour créer des draft orders Shopify",
   "main": "api/create-draft-order.js",
-  "dependencies": {},
+  "dependencies": {form-data": "^4.0.0",
+    "node-fetch": "^2.7.0"},
   "engines": {
     "node": "24.x"
   }
