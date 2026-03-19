@@ -1,10 +1,8 @@
 module.exports = async (req, res) => {
-  // Logs de debug
   console.log('🔍 SHOPIFY_STORE_URL:', process.env.SHOPIFY_STORE_URL);
   console.log('🔍 Token présent:', process.env.SHOPIFY_ACCESS_TOKEN ? 'OUI' : 'NON');
   console.log('🔍 Token début:', process.env.SHOPIFY_ACCESS_TOKEN?.substring(0, 10));
 
-  // Configuration CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -27,14 +25,14 @@ module.exports = async (req, res) => {
       });
     }
 
-    // ✅ VALEURS MISES À JOUR
-    const shopDomain = process.env.SHOPIFY_STORE_URL || 'solution-paiement.myshopify.com';
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN || 'VOTRE_ACCESS_TOKEN_SHPAT_ICI';
+    // ✅ Utiliser uniquement les variables d'environnement
+    const shopDomain = process.env.SHOPIFY_STORE_URL;
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
-    if (!accessToken || accessToken === 'VOTRE_ACCESS_TOKEN_SHPAT_ICI') {
+    if (!shopDomain || !accessToken) {
       return res.status(500).json({ 
         error: 'Configuration serveur incorrecte',
-        details: 'Access token non configuré - ajoutez SHOPIFY_ACCESS_TOKEN dans vos variables d\'environnement'
+        details: 'SHOPIFY_STORE_URL ou SHOPIFY_ACCESS_TOKEN non configuré'
       });
     }
 
@@ -47,7 +45,7 @@ module.exports = async (req, res) => {
     // ÉTAPE 1 : Récupérer tous les variants du produit
     // ========================================
     const getVariantsResponse = await fetch(
-      `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json?limit=250`,
+      `https://${shopDomain}/admin/api/2024-10/products/${productId}/variants.json?limit=250`,
       {
         method: 'GET',
         headers: {
@@ -75,7 +73,7 @@ module.exports = async (req, res) => {
     if (variantsData.variants && variantsData.variants.length > 0) {
       existingVariant = variantsData.variants.find(variant => {
         const variantPrice = parseFloat(variant.price);
-        return Math.abs(variantPrice - priceFloat) < 0.01; // Tolérance de 1 cent
+        return Math.abs(variantPrice - priceFloat) < 0.01;
       });
     }
 
@@ -113,7 +111,7 @@ module.exports = async (req, res) => {
       console.log('📦 Création du variant:', JSON.stringify(variantData, null, 2));
 
       const createVariantResponse = await fetch(
-        `https://${shopDomain}/admin/api/2024-01/products/${productId}/variants.json`,
+        `https://${shopDomain}/admin/api/2024-10/products/${productId}/variants.json`,
         {
           method: 'POST',
           headers: {
@@ -149,7 +147,7 @@ module.exports = async (req, res) => {
     });
 
     // ========================================
-    // ÉTAPE 5 : Retourner les informations pour ajouter au panier
+    // ÉTAPE 5 : Retourner les informations
     // ========================================
     return res.status(200).json({
       success: true,
