@@ -3,7 +3,6 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -39,64 +38,27 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'customer_id est requis' });
     }
 
-    // Préparer les metafields
     const metafields = [];
     
     if (compagnie !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'compagnie',
-        value: compagnie || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'compagnie', value: compagnie || '', type: 'single_line_text_field' });
     }
-    
     if (statut !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'statut',
-        value: statut || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'statut', value: statut || '', type: 'single_line_text_field' });
     }
-    
     if (association !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'association',
-        value: association || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'association', value: association || '', type: 'single_line_text_field' });
     }
-    
     if (numero_membre !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'numero_membre',
-        value: numero_membre || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'numero_membre', value: numero_membre || '', type: 'single_line_text_field' });
     }
-    
     if (numero_tps !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'numero_tps',
-        value: numero_tps || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'numero_tps', value: numero_tps || '', type: 'single_line_text_field' });
     }
-    
     if (numero_tvq !== undefined) {
-      metafields.push({
-        namespace: 'custom',
-        key: 'numero_tvq',
-        value: numero_tvq || '',
-        type: 'single_line_text_field'
-      });
+      metafields.push({ namespace: 'custom', key: 'numero_tvq', value: numero_tvq || '', type: 'single_line_text_field' });
     }
 
-    // Mettre à jour les informations de base du client
     const customerData = {
       customer: {
         id: customer_id,
@@ -104,14 +66,7 @@ module.exports = async function handler(req, res) {
         last_name,
         email,
         phone,
-        addresses: [{
-          address1,
-          address2,
-          city,
-          country,
-          province,
-          zip
-        }],
+        addresses: [{ address1, address2, city, country, province, zip }],
         metafields: metafields
       }
     };
@@ -132,17 +87,12 @@ module.exports = async function handler(req, res) {
 
     if (!updateResponse.ok) {
       console.error('Shopify API Error:', updateData);
-      return res.status(400).json({ 
-        error: 'Erreur lors de la mise à jour',
-        details: updateData.errors 
-      });
+      return res.status(400).json({ error: 'Erreur lors de la mise à jour', details: updateData.errors });
     }
 
-    // Upload et mise à jour de la photo si présente
     if (photo) {
       try {
         const photoGid = await uploadFileToShopify(photo, `photo_${customer_id}.jpg`, 'image/jpeg');
-        
         if (photoGid) {
           await updateCustomerMetafield(customer_id, 'photo', photoGid);
         }
@@ -151,11 +101,9 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // Upload et mise à jour du chèque si présent
     if (cheque) {
       try {
         const chequeGid = await uploadFileToShopify(cheque, `cheque_${customer_id}.jpg`, 'image/jpeg');
-        
         if (chequeGid) {
           await updateCustomerMetafield(customer_id, 'cheque', chequeGid);
         }
@@ -164,24 +112,17 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    return res.status(200).json({ 
-      success: true,
-      message: 'Profil mis à jour avec succès!'
-    });
+    return res.status(200).json({ success: true, message: 'Profil mis à jour avec succès!' });
 
   } catch (error) {
     console.error('Error:', error);
-    return res.status(500).json({ 
-      error: 'Une erreur est survenue',
-      details: error.message 
-    });
+    return res.status(500).json({ error: 'Une erreur est survenue', details: error.message });
   }
 };
 
-// Copier les mêmes fonctions helper de inscription-artiste.js
 async function uploadFileToShopify(fileBase64, filename, mimeType) {
-  const FormData = require('form-data');
-  const fetch = require('node-fetch');
+  const FormData = require('form-data'); // ✅ GARDER - nécessaire
+  // ❌ SUPPRIMÉ: const fetch = require('node-fetch');
   
   const buffer = Buffer.from(fileBase64.split(',')[1], 'base64');
 
@@ -290,7 +231,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
 }
 
 async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
-  const fetch = require('node-fetch');
+  // ❌ SUPPRIMÉ: const fetch = require('node-fetch');
   
   await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}.json`,
