@@ -1,5 +1,3 @@
-const { Resend } = require('resend');
-
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.paiementmusique.ca');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -114,43 +112,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // ✅ NOUVEAU - Envoi du courriel de confirmation
-    try {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      await resend.emails.send({
-        from: 'noreply@paiementmusique.ca',
-        to: email,
-        subject: 'Confirmation de mise à jour de votre profil artiste',
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #1a4d5c;">Bonjour ${first_name} ${last_name},</h2>
-            <p>Votre profil artiste a été mis à jour avec succès.</p>
-            <hr style="border-color: #ddd;">
-            <h3 style="color: #1a4d5c;">Informations mises à jour :</h3>
-            <ul>
-              <li><strong>Nom :</strong> ${first_name} ${last_name}</li>
-              <li><strong>Courriel :</strong> ${email}</li>
-              <li><strong>Téléphone :</strong> ${phone || '-'}</li>
-              <li><strong>Adresse :</strong> ${address1}${address2 ? ', ' + address2 : ''}, ${city}, ${province}, ${zip}</li>
-              ${compagnie ? `<li><strong>Compagnie :</strong> ${compagnie}</li>` : ''}
-              ${statut ? `<li><strong>Statut :</strong> ${statut}</li>` : ''}
-              ${association ? `<li><strong>Association :</strong> ${association}</li>` : ''}
-            </ul>
-            <hr style="border-color: #ddd;">
-            <p style="color: #666; font-size: 0.9em;">
-              Si vous n'êtes pas à l'origine de cette modification, 
-              contactez-nous immédiatement à <a href="mailto:info@paiementmusique.ca">info@paiementmusique.ca</a>.
-            </p>
-            <p>L'équipe Paiement Musique</p>
-          </div>
-        `
-      });
-      console.log('✅ Courriel de confirmation envoyé à:', email);
-    } catch (emailError) {
-      console.error('❌ Erreur envoi courriel:', emailError);
-      // On ne bloque pas la réponse si le courriel échoue
-    }
-
     return res.status(200).json({ success: true, message: 'Profil mis à jour avec succès!' });
 
   } catch (error) {
@@ -159,4 +120,135 @@ module.exports = async function handler(req, res) {
   }
 };
 
-// ... fonctions uploadFileToShopify et updateCustomerMetafield identiques
+async function uploadFileToShopify(fileBase64, filename, mimeType) {
+  const FormData = require('form-data');
+  
+  const buffer = Buffer.from(fileBase64.split(',')[1], 'base64');
+
+  const stagedUploadMutation = `
+    mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+      stagedUploadsCreate(input: $input) {
+        stagedTargets {
+          url
+          resourceUrl
+          parameters {
+            name
+            value
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const stagedResponse = await fetch(
+    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+      },
+      body: JSON.stringify({
+        query: stagedUploadMutation,
+        variables: {
+          input: [{
+            resource: "FILE",
+            filename: filename,
+            mimeType: mimeType,
+            httpMethod: "POST"
+          }]
+        }
+      })
+    }
+  );
+
+  const stagedData = await stagedResponse.json();
+  
+  if (stagedData.data?.stagedUploadsCreate?.userErrors?.length > 0) {
+    throw new Error(stagedData.data.stagedUploadsCreate.userErrors[0].message);
+  }
+
+  const stagedTarget = stagedData.data.stagedUploadsCreate.stagedTargets[0];
+
+  const formData = new FormData();
+  stagedTarget.parameters.forEach(param => {
+    formData.append(param.name, param.value);
+  });
+  formData.append('file', buffer, filename);
+
+  await fetch(stagedTarget.url, {
+    method: 'POST',
+    body: formData
+  });
+
+  const fileCreateMutation = `
+    mutation fileCreate($files: [FileCreateInput!]!) {
+      fileCreate(files: $files) {
+        files {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  `;
+
+  const fileCreateResponse = await fetch(
+    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+      },
+      body: JSON.stringify({
+        query: fileCreateMutation,
+        variables: {
+          files: [{
+            alt: filename,
+            contentType: "IMAGE",
+            originalSource: stagedTarget.resourceUrl
+          }]
+        }
+      })
+    }
+  );
+
+  const fileData = await fileCreateResponse.json();
+  
+  if (fileData.data?.fileCreate?.userErrors?.length > 0) {
+    throw new Error(fileData.data.fileCreate.userErrors[0].message);
+  }
+
+  return fileData.data.fileCreate.files[0].id;
+}
+
+async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
+  await fetch(
+    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}.json`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+      },
+      body: JSON.stringify({
+        customer: {
+          id: customerId,
+          metafields: [{
+            namespace: 'custom',
+            key: metafieldKey,
+            value: fileGid,
+            type: 'file_reference'
+          }]
+        }
+      })
+    }
+  );
+}
