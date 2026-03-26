@@ -12,6 +12,9 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  // ✅ Associations valides selon Shopify
+  const associationsValides = ['UDA', 'GMMQ', 'AFM', 'Non-membre ou permissionaire'];
+
   try {
     const {
       first_name,
@@ -31,28 +34,28 @@ module.exports = async function handler(req, res) {
       numero_membre,
       numero_tps,
       numero_tvq,
-      photo,   // ✅ AJOUTÉ
-      cheque   // ✅ AJOUTÉ
+      photo,
+      cheque
     } = req.body;
 
-    // Validation basique
     if (!first_name || !last_name || !email) {
       return res.status(400).json({ 
         error: 'Les champs prénom, nom et email sont requis' 
       });
     }
 
-    // Préparer les metafields (seulement ceux qui ont une valeur)
     const metafields = [];
 
     if (compagnie) metafields.push({ namespace: 'custom', key: 'compagnie', value: compagnie, type: 'single_line_text_field' });
     if (statut) metafields.push({ namespace: 'custom', key: 'statut', value: statut, type: 'single_line_text_field' });
-    if (association) metafields.push({ namespace: 'custom', key: 'association', value: association, type: 'single_line_text_field' });
+    // ✅ CORRIGÉ - Seulement si valeur valide
+    if (association && associationsValides.includes(association)) {
+      metafields.push({ namespace: 'custom', key: 'association', value: association, type: 'single_line_text_field' });
+    }
     if (numero_membre) metafields.push({ namespace: 'custom', key: 'numero_membre', value: numero_membre, type: 'single_line_text_field' });
     if (numero_tps) metafields.push({ namespace: 'custom', key: 'numero_tps', value: numero_tps, type: 'single_line_text_field' });
     if (numero_tvq) metafields.push({ namespace: 'custom', key: 'numero_tvq', value: numero_tvq, type: 'single_line_text_field' });
 
-    // Préparer les données du client
     const customerData = {
       customer: {
         first_name,
@@ -65,7 +68,6 @@ module.exports = async function handler(req, res) {
       }
     };
 
-    // ✅ Version API mise à jour: 2024-10
     const shopifyResponse = await fetch(
       `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers.json`,
       {
@@ -91,7 +93,6 @@ module.exports = async function handler(req, res) {
     const customerId = responseData.customer.id;
     console.log('✅ Client créé:', customerId);
 
-    // ✅ Upload photo si présente
     if (photo) {
       try {
         console.log('📤 Upload de la photo...');
@@ -105,7 +106,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // ✅ Upload chèque si présent
     if (cheque) {
       try {
         console.log('📤 Upload du chèque...');
@@ -119,7 +119,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // ✅ Version API mise à jour: 2024-10
     const accountActivationResponse = await fetch(
       `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}/account_activation_url.json`,
       {
@@ -149,7 +148,6 @@ module.exports = async function handler(req, res) {
   }
 };
 
-// ✅ Fonction pour uploader un fichier dans Shopify (sans require node-fetch)
 async function uploadFileToShopify(fileBase64, filename, mimeType) {
   const FormData = require('form-data');
   
@@ -259,10 +257,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   return fileData.data.fileCreate.files[0].id;
 }
 
-// ✅ Fonction pour mettre à jour un metafield (sans require node-fetch)
 async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
-  
-  // ✅ Récupérer l'ID du metafield existant s'il existe
   const getResponse = await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}/metafields.json?namespace=custom&key=${metafieldKey}`,
     {
@@ -276,8 +271,8 @@ async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
   const existingMetafield = getData.metafields?.[0];
 
   const metafieldData = existingMetafield
-    ? { id: existingMetafield.id, value: fileGid } // ✅ UPDATE
-    : { namespace: 'custom', key: metafieldKey, value: fileGid, type: 'file_reference' }; // ✅ CREATE
+    ? { id: existingMetafield.id, value: fileGid }
+    : { namespace: 'custom', key: metafieldKey, value: fileGid, type: 'file_reference' };
 
   await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}.json`,
@@ -296,4 +291,3 @@ async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
     }
   );
 }
-
