@@ -261,6 +261,24 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
 
 // ✅ Fonction pour mettre à jour un metafield (sans require node-fetch)
 async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
+  
+  // ✅ Récupérer l'ID du metafield existant s'il existe
+  const getResponse = await fetch(
+    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}/metafields.json?namespace=custom&key=${metafieldKey}`,
+    {
+      headers: {
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+      }
+    }
+  );
+  
+  const getData = await getResponse.json();
+  const existingMetafield = getData.metafields?.[0];
+
+  const metafieldData = existingMetafield
+    ? { id: existingMetafield.id, value: fileGid } // ✅ UPDATE
+    : { namespace: 'custom', key: metafieldKey, value: fileGid, type: 'file_reference' }; // ✅ CREATE
+
   await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}.json`,
     {
@@ -272,14 +290,10 @@ async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
       body: JSON.stringify({
         customer: {
           id: customerId,
-          metafields: [{
-            namespace: 'custom',
-            key: metafieldKey,
-            value: fileGid,
-            type: 'file_reference'
-          }]
+          metafields: [metafieldData]
         }
       })
     }
   );
 }
+
