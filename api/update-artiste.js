@@ -2,7 +2,7 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.paiementmusique.ca');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
+  
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -58,7 +58,7 @@ module.exports = async function handler(req, res) {
     if (numero_tvq !== undefined) {
       metafields.push({ namespace: 'custom', key: 'numero_tvq', value: numero_tvq || '', type: 'single_line_text_field' });
     }
-
+    console.log('🔍 association reçue:', JSON.stringify(association));
     const customerData = {
       customer: {
         id: customer_id,
