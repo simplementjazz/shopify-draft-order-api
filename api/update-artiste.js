@@ -84,6 +84,7 @@ module.exports = async function handler(req, res) {
         : { namespace: 'custom', key: 'numero_tvq', value: numero_tvq || '', type: 'single_line_text_field' });
     }
 
+    console.log('🔍 metafields envoyés:', JSON.stringify(metafields, null, 2));
     const customerData = {
       customer: {
         id: customer_id,
