@@ -1,4 +1,4 @@
-// api/update-artiste.js
+// api/inscription-artiste.js
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.paiementmusique.ca');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
