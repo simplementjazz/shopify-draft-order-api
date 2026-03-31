@@ -1,3 +1,4 @@
+// api/update-artiste.js
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', 'https://www.paiementmusique.ca');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -84,7 +85,6 @@ module.exports = async function handler(req, res) {
         : { namespace: 'custom', key: 'numero_tvq', value: numero_tvq || '', type: 'single_line_text_field' });
     }
 
-    console.log('🔍 metafields envoyés:', JSON.stringify(metafields, null, 2));
     const customerData = {
       customer: {
         id: customer_id,
@@ -116,22 +116,26 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Erreur lors de la mise à jour', details: updateData.errors });
     }
 
+    // ✅ Upload photo → URL publique
     if (photo) {
       try {
-        const photoGid = await uploadFileToShopify(photo, `photo_${customer_id}.jpg`, 'image/jpeg');
-        if (photoGid) {
-          await updateCustomerMetafield(customer_id, 'photo', photoGid);
+        const photoUrl = await uploadFileToShopify(photo, `photo_${customer_id}.jpg`, 'image/jpeg');
+        if (photoUrl) {
+          await updateCustomerMetafield(customer_id, 'photo', photoUrl);
+          console.log('✅ Photo uploadée:', photoUrl);
         }
       } catch (error) {
         console.error('Error uploading photo:', error);
       }
     }
 
+    // ✅ Upload chèque → URL publique
     if (cheque) {
       try {
-        const chequeGid = await uploadFileToShopify(cheque, `cheque_${customer_id}.jpg`, 'image/jpeg');
-        if (chequeGid) {
-          await updateCustomerMetafield(customer_id, 'cheque', chequeGid);
+        const chequeUrl = await uploadFileToShopify(cheque, `cheque_${customer_id}.jpg`, 'image/jpeg');
+        if (chequeUrl) {
+          await updateCustomerMetafield(customer_id, 'cheque', chequeUrl);
+          console.log('✅ Chèque uploadé:', chequeUrl);
         }
       } catch (error) {
         console.error('Error uploading cheque:', error);
@@ -233,10 +237,41 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
     throw new Error(fileData.data.fileCreate.userErrors[0].message);
   }
 
-  return fileData.data.fileCreate.files[0].id;
+  const fileGid = fileData.data.fileCreate.files[0].id;
+
+  // ✅ Attendre le traitement Shopify
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // ✅ Récupérer l'URL publique
+  const urlQuery = `
+    query getFileUrl($id: ID!) {
+      node(id: $id) {
+        ... on MediaImage {
+          image { url }
+        }
+      }
+    }
+  `;
+
+  const urlResponse = await fetch(
+    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+      },
+      body: JSON.stringify({ query: urlQuery, variables: { id: fileGid } })
+    }
+  );
+
+  const urlData = await urlResponse.json();
+  const publicUrl = urlData.data?.node?.image?.url;
+  console.log('✅ URL publique:', publicUrl);
+  return publicUrl;
 }
 
-async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
+async function updateCustomerMetafield(customerId, metafieldKey, fileUrl) {
   const getResponse = await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}/metafields.json?namespace=custom&key=${metafieldKey}`,
     { headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN } }
@@ -245,9 +280,10 @@ async function updateCustomerMetafield(customerId, metafieldKey, fileGid) {
   const getData = await getResponse.json();
   const existingMetafield = getData.metafields?.[0];
 
+  // ✅ single_line_text_field pour stocker une URL
   const metafieldData = existingMetafield
-    ? { id: existingMetafield.id, value: fileGid }
-    : { namespace: 'custom', key: metafieldKey, value: fileGid, type: 'file_reference' };
+    ? { id: existingMetafield.id, value: fileUrl }
+    : { namespace: 'custom', key: metafieldKey, value: fileUrl, type: 'single_line_text_field' };
 
   await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}.json`,
