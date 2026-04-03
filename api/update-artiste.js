@@ -137,7 +137,6 @@ async function getExistingMetafields(customerId) {
 }
 
 async function uploadFileToShopify(fileBase64, filename, mimeType) {
-  const FormData = require('form-data');
   const buffer = Buffer.from(fileBase64.split(',')[1], 'base64');
 
   const stagedUploadMutation = `
@@ -164,7 +163,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
       body: JSON.stringify({
         query: stagedUploadMutation,
         variables: {
-          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "POST" }]
+          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "PUT" }] // ✅ PUT
         }
       })
     }
@@ -176,14 +175,19 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   }
 
   const stagedTarget = stagedData.data.stagedUploadsCreate.stagedTargets[0];
-  const formData = new FormData();
-  stagedTarget.parameters.forEach(param => formData.append(param.name, param.value));
-  formData.append('file', buffer, filename);
 
-  const uploadResponse = await fetch(stagedTarget.url, { method: 'POST', body: formData });
+  // ✅ PUT avec buffer directement (pas de FormData)
+  const uploadResponse = await fetch(stagedTarget.url, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType },
+    body: buffer
+  });
   console.log('🔍 Upload status:', uploadResponse.status);
-  const uploadText = await uploadResponse.text();
-  console.log('🔍 Upload response:', uploadText.substring(0, 500));
+
+  if (!uploadResponse.ok) {
+    const uploadText = await uploadResponse.text();
+    throw new Error(`Upload échoué: ${uploadText.substring(0, 200)}`);
+  }
 
   const fileCreateMutation = `
     mutation fileCreate($files: [FileCreateInput!]!) {
@@ -247,11 +251,10 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
     );
 
     const urlData = await urlResponse.json();
-    console.log('🔍 urlData brut:', JSON.stringify(urlData.data?.node, null, 2)); // ✅ AJOUT
     publicUrl = urlData.data?.node?.image?.url;
     console.log(`🔍 Tentative ${i + 1} - URL:`, publicUrl);
 
-    if (publicUrl) break; // ✅ URL disponible
+    if (publicUrl) break;
   }
 
   if (!publicUrl) {
