@@ -244,6 +244,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
     );
 
     const urlData = await urlResponse.json();
+    console.log('🔍 urlData brut:', JSON.stringify(urlData.data?.node, null, 2)); // ✅ AJOUT
     publicUrl = urlData.data?.node?.image?.url;
     console.log(`🔍 Tentative ${i + 1} - URL:`, publicUrl);
 
