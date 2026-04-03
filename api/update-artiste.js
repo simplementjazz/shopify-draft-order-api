@@ -12,37 +12,20 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // ✅ Associations valides selon Shopify
   const associationsValides = ['UDA', 'GMMQ', 'AFM', 'Non-membre ou permissionaire', 'None'];
 
   try {
     const {
-      customer_id,
-      first_name,
-      last_name,
-      email,
-      phone,
-      address1,
-      address2,
-      city,
-      country,
-      province,
-      zip,
-      compagnie,
-      statut,
-      association,
-      numero_membre,
-      numero_tps,
-      numero_tvq,
-      photo,
-      cheque
+      customer_id, first_name, last_name, email, phone,
+      address1, address2, city, country, province, zip,
+      compagnie, statut, association, numero_membre,
+      numero_tps, numero_tvq, photo, cheque
     } = req.body;
 
     if (!customer_id) {
       return res.status(400).json({ error: 'customer_id est requis' });
     }
 
-    // ✅ Récupérer tous les metafields existants pour upsert
     const existingMetafields = await getExistingMetafields(customer_id);
     const findExisting = (key) => existingMetafields.find(m => m.key === key);
 
@@ -87,13 +70,9 @@ module.exports = async function handler(req, res) {
 
     const customerData = {
       customer: {
-        id: customer_id,
-        first_name,
-        last_name,
-        email,
-        phone,
+        id: customer_id, first_name, last_name, email, phone,
         addresses: [{ address1, address2, city, country, province, zip }],
-        metafields: metafields
+        metafields
       }
     };
 
@@ -116,7 +95,6 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Erreur lors de la mise à jour', details: updateData.errors });
     }
 
-    // ✅ Upload photo → URL publique
     if (photo) {
       try {
         const photoUrl = await uploadFileToShopify(photo, `photo_${customer_id}.jpg`, 'image/jpeg');
@@ -129,7 +107,6 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // ✅ Upload chèque → URL publique
     if (cheque) {
       try {
         const chequeUrl = await uploadFileToShopify(cheque, `cheque_${customer_id}.jpg`, 'image/jpeg');
@@ -150,7 +127,6 @@ module.exports = async function handler(req, res) {
   }
 };
 
-// ✅ Récupérer tous les metafields existants du client
 async function getExistingMetafields(customerId) {
   const response = await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/${customerId}/metafields.json?namespace=custom`,
@@ -188,7 +164,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
       body: JSON.stringify({
         query: stagedUploadMutation,
         variables: {
-          input: [{ resource: "FILE", filename, mimeType, httpMethod: "POST" }]
+          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "POST" }] // ✅ IMAGE au lieu de FILE
         }
       })
     }
@@ -209,11 +185,19 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   const fileCreateMutation = `
     mutation fileCreate($files: [FileCreateInput!]!) {
       fileCreate(files: $files) {
-        files { id }
+        files {
+          id
+          ... on MediaImage {
+            image { url }
+          }
+        }
         userErrors { field message }
       }
     }
   `;
+
+  // ✅ Attendre le traitement Shopify
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
   const fileCreateResponse = await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
@@ -233,40 +217,14 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   );
 
   const fileData = await fileCreateResponse.json();
+  console.log('🔍 fileCreate response:', JSON.stringify(fileData, null, 2));
+
   if (fileData.data?.fileCreate?.userErrors?.length > 0) {
     throw new Error(fileData.data.fileCreate.userErrors[0].message);
   }
 
-  const fileGid = fileData.data.fileCreate.files[0].id;
-
-  // ✅ Attendre le traitement Shopify
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  // ✅ Récupérer l'URL publique
-  const urlQuery = `
-    query getFileUrl($id: ID!) {
-      node(id: $id) {
-        ... on MediaImage {
-          image { url }
-        }
-      }
-    }
-  `;
-
-  const urlResponse = await fetch(
-    `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
-      },
-      body: JSON.stringify({ query: urlQuery, variables: { id: fileGid } })
-    }
-  );
-
-  const urlData = await urlResponse.json();
-  const publicUrl = urlData.data?.node?.image?.url;
+  // ✅ Récupérer l'URL directement depuis fileCreate
+  const publicUrl = fileData.data?.fileCreate?.files?.[0]?.image?.url;
   console.log('✅ URL publique:', publicUrl);
   return publicUrl;
 }
@@ -280,7 +238,6 @@ async function updateCustomerMetafield(customerId, metafieldKey, fileUrl) {
   const getData = await getResponse.json();
   const existingMetafield = getData.metafields?.[0];
 
-  // ✅ single_line_text_field pour stocker une URL
   const metafieldData = existingMetafield
     ? { id: existingMetafield.id, value: fileUrl }
     : { namespace: 'custom', key: metafieldKey, value: fileUrl, type: 'single_line_text_field' };
