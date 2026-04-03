@@ -180,7 +180,10 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   stagedTarget.parameters.forEach(param => formData.append(param.name, param.value));
   formData.append('file', buffer, filename);
 
-  await fetch(stagedTarget.url, { method: 'POST', body: formData });
+  const uploadResponse = await fetch(stagedTarget.url, { method: 'POST', body: formData });
+  console.log('🔍 Upload status:', uploadResponse.status);
+  const uploadText = await uploadResponse.text();
+  console.log('🔍 Upload response:', uploadText.substring(0, 500));
 
   const fileCreateMutation = `
     mutation fileCreate($files: [FileCreateInput!]!) {
