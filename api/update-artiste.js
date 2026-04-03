@@ -164,7 +164,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
       body: JSON.stringify({
         query: stagedUploadMutation,
         variables: {
-          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "POST" }] // ✅ IMAGE au lieu de FILE
+          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "POST" }]
         }
       })
     }
@@ -185,19 +185,11 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   const fileCreateMutation = `
     mutation fileCreate($files: [FileCreateInput!]!) {
       fileCreate(files: $files) {
-        files {
-          id
-          ... on MediaImage {
-            image { url }
-          }
-        }
+        files { id }
         userErrors { field message }
       }
     }
   `;
-
-  // ✅ Attendre le traitement Shopify
-  await new Promise(resolve => setTimeout(resolve, 2000));
 
   const fileCreateResponse = await fetch(
     `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
@@ -217,15 +209,51 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   );
 
   const fileData = await fileCreateResponse.json();
-  console.log('🔍 fileCreate response:', JSON.stringify(fileData, null, 2));
-
   if (fileData.data?.fileCreate?.userErrors?.length > 0) {
     throw new Error(fileData.data.fileCreate.userErrors[0].message);
   }
 
-  // ✅ Récupérer l'URL directement depuis fileCreate
-  const publicUrl = fileData.data?.fileCreate?.files?.[0]?.image?.url;
-  console.log('✅ URL publique:', publicUrl);
+  const fileGid = fileData.data.fileCreate.files[0].id;
+  console.log('🔍 fileGid:', fileGid);
+
+  // ✅ Polling jusqu'à ce que l'URL soit disponible (max 10 tentatives x 2s = 20s)
+  const urlQuery = `
+    query getFileUrl($id: ID!) {
+      node(id: $id) {
+        ... on MediaImage {
+          image { url }
+        }
+      }
+    }
+  `;
+
+  let publicUrl = null;
+  for (let i = 0; i < 10; i++) {
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    const urlResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/graphql.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN
+        },
+        body: JSON.stringify({ query: urlQuery, variables: { id: fileGid } })
+      }
+    );
+
+    const urlData = await urlResponse.json();
+    publicUrl = urlData.data?.node?.image?.url;
+    console.log(`🔍 Tentative ${i + 1} - URL:`, publicUrl);
+
+    if (publicUrl) break; // ✅ URL disponible
+  }
+
+  if (!publicUrl) {
+    console.error('❌ URL non disponible après 10 tentatives');
+  }
+
   return publicUrl;
 }
 
