@@ -26,6 +26,16 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Les champs prénom, nom et email sont requis' });
     }
 
+    // ✅ Vérifier si l'email existe déjà
+    const searchResponse = await fetch(
+      `https://${process.env.SHOPIFY_STORE_URL}/admin/api/2024-10/customers/search.json?query=email:${encodeURIComponent(email)}`,
+      { headers: { 'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN } }
+    );
+    const searchData = await searchResponse.json();
+    if (searchData.customers?.length > 0) {
+      return res.status(400).json({ error: 'Un compte existe déjà avec cet adresse courriel.' });
+    }
+
     const metafields = [];
 
     if (compagnie) metafields.push({ namespace: 'custom', key: 'compagnie', value: compagnie, type: 'single_line_text_field' });
@@ -147,7 +157,7 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
       body: JSON.stringify({
         query: stagedUploadMutation,
         variables: {
-          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "PUT" }] // ✅ PUT
+          input: [{ resource: "IMAGE", filename, mimeType, httpMethod: "PUT" }]
         }
       })
     }
@@ -160,7 +170,6 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
 
   const stagedTarget = stagedData.data.stagedUploadsCreate.stagedTargets[0];
 
-  // ✅ PUT avec buffer directement (pas de FormData)
   const uploadResponse = await fetch(stagedTarget.url, {
     method: 'PUT',
     headers: { 'Content-Type': mimeType },
@@ -207,7 +216,6 @@ async function uploadFileToShopify(fileBase64, filename, mimeType) {
   const fileGid = fileData.data.fileCreate.files[0].id;
   console.log('🔍 fileGid:', fileGid);
 
-  // ✅ Polling jusqu'à ce que l'URL soit disponible (max 10 tentatives x 2s = 20s)
   const urlQuery = `
     query getFileUrl($id: ID!) {
       node(id: $id) {
