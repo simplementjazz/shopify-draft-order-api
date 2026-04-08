@@ -92,8 +92,18 @@ module.exports = async function handler(req, res) {
 
     if (!updateResponse.ok) {
       console.error('Shopify API Error:', updateData);
+      
+      // ✅ Message personnalisé selon le type d'erreur
+      if (updateData.errors?.phone) {
+        return res.status(400).json({ error: 'Un compte existe déjà avec ce numéro de téléphone.' });
+      }
+      if (updateData.errors?.email) {
+        return res.status(400).json({ error: 'Un compte existe déjà avec cette adresse courriel.' });
+      }
+      
       return res.status(400).json({ error: 'Erreur lors de la mise à jour', details: updateData.errors });
     }
+
 
     if (photo) {
       try {
