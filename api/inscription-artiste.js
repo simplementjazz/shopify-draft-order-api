@@ -72,8 +72,18 @@ module.exports = async function handler(req, res) {
 
     if (!shopifyResponse.ok) {
       console.error('Shopify API Error:', responseData);
+      
+      // ✅ Message personnalisé selon le type d'erreur
+      if (responseData.errors?.phone) {
+        return res.status(400).json({ error: 'Un compte existe déjà avec ce numéro de téléphone.' });
+      }
+      if (responseData.errors?.email) {
+        return res.status(400).json({ error: 'Un compte existe déjà avec cette adresse courriel.' });
+      }
+      
       return res.status(400).json({ error: 'Erreur lors de la création du compte', details: responseData.errors });
     }
+
 
     const customerId = responseData.customer.id;
     console.log('✅ Client créé:', customerId);
