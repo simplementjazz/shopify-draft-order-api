@@ -25,7 +25,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // ✅ Utiliser uniquement les variables d'environnement
     const shopDomain = process.env.SHOPIFY_STORE_URL;
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
@@ -88,6 +87,7 @@ module.exports = async (req, res) => {
       variantId = existingVariant.id;
       variantTitle = existingVariant.title;
       console.log('✅ Variant existant trouvé:', variantId, '-', variantTitle);
+
     } else {
       // ========================================
       // ÉTAPE 3B : Aucun variant trouvé, on en crée un nouveau
@@ -103,8 +103,9 @@ module.exports = async (req, res) => {
           option1: variantTitle,
           price: price,
           sku: variantSKU,
-          inventory_management: null,
-          inventory_policy: 'continue'
+          inventory_management: null,   // ✅ Stock non suivi
+          inventory_policy: 'continue',
+          requires_shipping: false       // ✅ Pas un produit physique
         }
       };
 
@@ -136,6 +137,41 @@ module.exports = async (req, res) => {
       variantTitle = variantResponseData.variant.title;
       isNewVariant = true;
       console.log('✅ Nouveau variant créé:', variantId, '-', variantTitle);
+
+      // ========================================
+      // ÉTAPE 3C : Forcer tracked:false sur l'inventory_item
+      // ========================================
+      const inventoryItemId = variantResponseData.variant.inventory_item_id;
+
+      try {
+        const inventoryPatchResponse = await fetch(
+          `https://${shopDomain}/admin/api/2024-10/inventory_items/${inventoryItemId}.json`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': accessToken
+            },
+            body: JSON.stringify({
+              inventory_item: {
+                id: inventoryItemId,
+                tracked: false,
+                requires_shipping: false
+              }
+            })
+          }
+        );
+
+        if (inventoryPatchResponse.ok) {
+          console.log('✅ inventory_item mis à jour: tracked=false, requires_shipping=false');
+        } else {
+          const inventoryError = await inventoryPatchResponse.json();
+          console.warn('⚠️ Avertissement mise à jour inventory_item:', inventoryError);
+        }
+      } catch (inventoryErr) {
+        // Non bloquant : on continue même si ce PATCH échoue
+        console.warn('⚠️ Erreur non bloquante inventory_item:', inventoryErr.message);
+      }
     }
 
     // ========================================
