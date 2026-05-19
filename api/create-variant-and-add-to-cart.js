@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
 
-    console.log('🔍 Recherche de variant existant avec prix:', priceFloat);
+    console.log('🔍 Recherche de variant existant avec prix:', priceFloat, 'et secteur:', secteur);
 
     // ========================================
     // ÉTAPE 1 : Récupérer tous les variants du produit
@@ -65,14 +65,15 @@ module.exports = async (req, res) => {
     }
 
     // ========================================
-    // ÉTAPE 2 : Chercher un variant avec le même prix
+    // ÉTAPE 2 : Chercher un variant avec le même prix ET le même secteur
+    // ✅ CORRECTION : on matche sur secteur (option1) + prix
     // ========================================
     let existingVariant = null;
     
     if (variantsData.variants && variantsData.variants.length > 0) {
-      existingVariant = variantsData.variants.find(variant => {
-        const variantPrice = parseFloat(variant.price);
-        return Math.abs(variantPrice - priceFloat) < 0.01;
+      existingVariant = variantsData.variants.find(v => {
+        const variantPrice = parseFloat(v.price);
+        return Math.abs(variantPrice - priceFloat) < 0.01 && v.option1 === secteur;
       });
     }
 
@@ -91,21 +92,23 @@ module.exports = async (req, res) => {
     } else {
       // ========================================
       // ÉTAPE 3B : Aucun variant trouvé, on en crée un nouveau
+      // ✅ CORRECTION : option1 = secteur seul (affiché comme titre dans le panier)
       // ========================================
       console.log('➕ Création d\'un nouveau variant...');
       
-      variantTitle = `${secteur} - ${priceFloat.toFixed(2)} $`;
+      // ✅ Le titre affiché dans le panier sera le secteur (ex: "Ambiance & Établissements")
+      variantTitle = secteur;
       const variantSKU = `Prestation-${Date.now()}`;
 
       const variantData = {
         variant: {
           product_id: productId,
-          option1: variantTitle,
+          option1: variantTitle,   // ✅ secteur seul = titre visible dans le panier
           price: price,
           sku: variantSKU,
-          inventory_management: null,   // ✅ Stock non suivi
+          inventory_management: null,
           inventory_policy: 'continue',
-          requires_shipping: false       // ✅ Pas un produit physique
+          requires_shipping: false
         }
       };
 
@@ -169,7 +172,6 @@ module.exports = async (req, res) => {
           console.warn('⚠️ Avertissement mise à jour inventory_item:', inventoryError);
         }
       } catch (inventoryErr) {
-        // Non bloquant : on continue même si ce PATCH échoue
         console.warn('⚠️ Erreur non bloquante inventory_item:', inventoryErr.message);
       }
     }
@@ -185,7 +187,6 @@ module.exports = async (req, res) => {
     // ========================================
     // ÉTAPE 5 : Retourner les informations
     // ========================================
-
     console.log('✅ Secteur :', secteur);
     return res.status(200).json({
       success: true,
