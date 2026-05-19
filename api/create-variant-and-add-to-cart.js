@@ -185,10 +185,12 @@ module.exports = async (req, res) => {
     // ========================================
     // ÉTAPE 5 : Retourner les informations
     // ========================================
+
+    console.log('✅ Secteur :', secteur);
     return res.status(200).json({
       success: true,
       variantId: variantId,
-      variantTitle: secteur,
+      variantTitle: variantTitle,
       price: price,
       properties: cartProperties,
       isNewVariant: isNewVariant,
