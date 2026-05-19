@@ -188,7 +188,7 @@ module.exports = async (req, res) => {
     return res.status(200).json({
       success: true,
       variantId: variantId,
-      variantTitle: variantTitle,
+      variantTitle: secteur,
       price: price,
       properties: cartProperties,
       isNewVariant: isNewVariant,
