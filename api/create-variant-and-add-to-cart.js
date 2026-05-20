@@ -173,10 +173,15 @@ module.exports = async (req, res) => {
 
     // ========================================
     // ÉTAPE 4 : Préparer les properties pour le panier
+    // ✅ Renommer 'Title' en '_Title' pour le masquer dans le panier
     // ========================================
     const cartProperties = {};
     Object.entries(properties || {}).forEach(([key, value]) => {
-      cartProperties[key] = String(value);
+      if (key === 'Title') {
+        cartProperties['_Title'] = String(value); // ✅ masqué automatiquement
+      } else {
+        cartProperties[key] = String(value);
+      }
     });
 
     // ========================================
