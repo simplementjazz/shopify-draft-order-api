@@ -38,7 +38,10 @@ module.exports = async (req, res) => {
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
 
-    console.log('🔍 Recherche de variant existant avec prix:', priceFloat, 'et secteur:', secteur);
+    // ✅ Clé unique : secteur + prix → évite les doublons Shopify
+    const option1Key = `${secteur}||${priceFloat.toFixed(2)}`;
+
+    console.log('🔍 Recherche de variant avec option1Key:', option1Key);
 
     // ========================================
     // ÉTAPE 1 : Récupérer tous les variants du produit
@@ -65,20 +68,17 @@ module.exports = async (req, res) => {
     }
 
     // ========================================
-    // ÉTAPE 2 : Chercher un variant avec le même prix ET le même secteur
-    // ✅ CORRECTION : on matche sur secteur (option1) + prix
+    // ÉTAPE 2 : Chercher par option1Key exact (secteur||prix)
+    // ✅ Même secteur + même prix → réutiliser
+    // ✅ Même secteur + prix différent → option1Key différent → nouveau variant
     // ========================================
     let existingVariant = null;
-    
+
     if (variantsData.variants && variantsData.variants.length > 0) {
-      existingVariant = variantsData.variants.find(v => {
-        const variantPrice = parseFloat(v.price);
-        return Math.abs(variantPrice - priceFloat) < 0.01 && v.option1 === secteur;
-      });
+      existingVariant = variantsData.variants.find(v => v.option1 === option1Key);
     }
 
     let variantId;
-    let variantTitle;
     let isNewVariant = false;
 
     if (existingVariant) {
@@ -86,24 +86,20 @@ module.exports = async (req, res) => {
       // ÉTAPE 3A : Variant trouvé, on le réutilise
       // ========================================
       variantId = existingVariant.id;
-      variantTitle = existingVariant.title;
-      console.log('✅ Variant existant trouvé:', variantId, '-', variantTitle);
+      console.log('✅ Variant existant trouvé:', variantId, '-', option1Key);
 
     } else {
       // ========================================
-      // ÉTAPE 3B : Aucun variant trouvé, on en crée un nouveau
-      // ✅ CORRECTION : option1 = secteur seul (affiché comme titre dans le panier)
+      // ÉTAPE 3B : Créer un nouveau variant avec option1Key unique
       // ========================================
       console.log('➕ Création d\'un nouveau variant...');
-      
-      // ✅ Le titre affiché dans le panier sera le secteur (ex: "Ambiance & Établissements")
-      variantTitle = secteur;
+
       const variantSKU = `Prestation-${Date.now()}`;
 
       const variantData = {
         variant: {
           product_id: productId,
-          option1: variantTitle,   // ✅ secteur seul = titre visible dans le panier
+          option1: option1Key,         // ✅ ex: "Scène & événementiel||1051.84"
           price: price,
           sku: variantSKU,
           inventory_management: null,
@@ -137,9 +133,8 @@ module.exports = async (req, res) => {
       }
 
       variantId = variantResponseData.variant.id;
-      variantTitle = variantResponseData.variant.title;
       isNewVariant = true;
-      console.log('✅ Nouveau variant créé:', variantId, '-', variantTitle);
+      console.log('✅ Nouveau variant créé:', variantId, '-', option1Key);
 
       // ========================================
       // ÉTAPE 3C : Forcer tracked:false sur l'inventory_item
@@ -186,12 +181,13 @@ module.exports = async (req, res) => {
 
     // ========================================
     // ÉTAPE 5 : Retourner les informations
+    // ✅ variantTitle = secteur seul (affiché proprement dans le panier)
     // ========================================
     console.log('✅ Secteur :', secteur);
     return res.status(200).json({
       success: true,
       variantId: variantId,
-      variantTitle: variantTitle,
+      variantTitle: secteur,         // ✅ "Scène & événementiel" (sans le prix)
       price: price,
       properties: cartProperties,
       isNewVariant: isNewVariant,
@@ -206,3 +202,4 @@ module.exports = async (req, res) => {
     });
   }
 };
+
