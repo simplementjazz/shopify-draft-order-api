@@ -37,11 +37,56 @@ module.exports = async (req, res) => {
 
     const secteur = properties['Secteur'] || '';
     const priceFloat = parseFloat(price);
-
-    // ✅ Clé unique : secteur + prix → évite les doublons Shopify
     const option1Key = `${secteur}||${priceFloat.toFixed(2)}`;
 
     console.log('🔍 Recherche de variant avec option1Key:', option1Key);
+
+    // ========================================
+    // ÉTAPE 0 : Renommer l'option du produit en '_Title' si nécessaire
+    // ✅ '_Title' est masqué automatiquement par Shopify dans le panier
+    // ========================================
+    try {
+      const getProductResponse = await fetch(
+        `https://${shopDomain}/admin/api/2024-10/products/${productId}.json`,
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Shopify-Access-Token': accessToken
+          }
+        }
+      );
+
+      const productData = await getProductResponse.json();
+      const currentOption = productData.product?.options?.[0];
+
+      if (currentOption && currentOption.name !== '_Title') {
+        console.log('🔄 Renommage option produit:', currentOption.name, '→ _Title');
+
+        await fetch(
+          `https://${shopDomain}/admin/api/2024-10/products/${productId}.json`,
+          {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Shopify-Access-Token': accessToken
+            },
+            body: JSON.stringify({
+              product: {
+                id: productId,
+                options: [{ id: currentOption.id, name: '_Title' }]
+              }
+            })
+          }
+        );
+        console.log('✅ Option renommée en _Title');
+      } else {
+        console.log('✅ Option déjà nommée _Title, rien à faire');
+      }
+    } catch (optionErr) {
+      // Non bloquant : on continue même si ce renommage échoue
+      console.warn('⚠️ Erreur non bloquante renommage option:', optionErr.message);
+    }
 
     // ========================================
     // ÉTAPE 1 : Récupérer tous les variants du produit
@@ -70,7 +115,7 @@ module.exports = async (req, res) => {
     // ========================================
     // ÉTAPE 2 : Chercher par option1Key exact (secteur||prix)
     // ✅ Même secteur + même prix → réutiliser
-    // ✅ Même secteur + prix différent → option1Key différent → nouveau variant
+    // ✅ Même secteur + prix différent → nouveau variant
     // ========================================
     let existingVariant = null;
 
@@ -99,7 +144,7 @@ module.exports = async (req, res) => {
       const variantData = {
         variant: {
           product_id: productId,
-          option1: option1Key,         // ✅ ex: "Scène & événementiel||1051.84"
+          option1: option1Key,
           price: price,
           sku: variantSKU,
           inventory_management: null,
@@ -173,12 +218,12 @@ module.exports = async (req, res) => {
 
     // ========================================
     // ÉTAPE 4 : Préparer les properties pour le panier
-    // ✅ Renommer 'Title' en '_Title' pour le masquer dans le panier
+    // ✅ 'Title' → '_Title' pour masquer dans le panier
     // ========================================
     const cartProperties = {};
     Object.entries(properties || {}).forEach(([key, value]) => {
       if (key === 'Title') {
-        cartProperties['_Title'] = String(value); // ✅ masqué automatiquement
+        cartProperties['_Title'] = String(value);
       } else {
         cartProperties[key] = String(value);
       }
@@ -186,13 +231,12 @@ module.exports = async (req, res) => {
 
     // ========================================
     // ÉTAPE 5 : Retourner les informations
-    // ✅ variantTitle = secteur seul (affiché proprement dans le panier)
     // ========================================
     console.log('✅ Secteur :', secteur);
     return res.status(200).json({
       success: true,
       variantId: variantId,
-      variantTitle: secteur,         // ✅ "Scène & événementiel" (sans le prix)
+      variantTitle: secteur,
       price: price,
       properties: cartProperties,
       isNewVariant: isNewVariant,
@@ -207,4 +251,3 @@ module.exports = async (req, res) => {
     });
   }
 };
-
